@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 import sys
+import re
 
 class cmd_args:
 
     validKeys = {
             "--help" : 0,
             "-h" : 0,
+            "--bnf" : 0,
+            "-b" : 0,
             "--grammar" : 1,
             "-g" : 1
     }
@@ -62,6 +65,56 @@ class cmd_args:
         print("helpful")
 
 
+class token:
+
+    def __init__(self, char):
+        self._string = char
+        if char == " " or char == "\n":
+            self._type = "white space"
+        elif char == "<":
+            self._type = "symbol"
+        elif char == ":":
+            self._type = "assignment"
+        elif char == "|":
+            self._type = "choice"
+        elif char == "":
+            self._type = "EOF"
+        elif char == ";":
+            self.type = "comment"
+        else:
+            self._type = "string"
+
+    def append(self, char):
+        self._string += char
+
+    def valid_token(self, char):
+        if (self._type == "white space" 
+
+    def end_of_token(self, char):
+        if (self._type == "white space" and (char != " " \
+                or char != "\n")) \
+                or (self._type == "symbol" and char == ">") \
+                or (self._type == "assignment" and char == "=") \
+                or (self._type == "choice") \
+                or (self._type == "EOF") \
+                or (self._type == "comment" and char == "\n")
+                or (self._type == "string" and char == " "):
+            return True
+        else:
+            return False
+
+
+
+class lexer:
+
+    def __init__(self, body):
+        curToken = token(" ")
+        self._tokens = []
+        print(curToken.type())
+
+
+
+
 class grammar:
 
     def __init__(self, fileName):
@@ -70,7 +123,7 @@ class grammar:
         self.__parse_file(text)
 
     def __parse_file(self, text):
-        print("yo")
+        lex = lexer(text)
 
 
 def main():
