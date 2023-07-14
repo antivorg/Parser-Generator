@@ -193,8 +193,15 @@ class grammar:
     def __parse_expresions(self, lex):
         token = lex.fetch_token()
         while token.type() != "EOF":
-            
-
+            # RHS
+            while token.type() == "white space" \
+                    or token.type() == "comment":
+                token = lex.fetch_token()
+            if token.type() != symbol:
+                self.__parse_error(equality, "Expected Assignment")
+                sys.exit()
+            expr = expression(token)
+            tokenStack = []
 
 #        token = lex.fetch_token()
 #        while token.type() == "white space" \
