@@ -89,6 +89,8 @@ class token:
 
     def add_char(self, char):
         self._token += char
+        if not (self._token in "::=") and self._type == "assignment":
+            self._token = "string"
 
     def valid_token(self):
         for i in range(0, len(self._token)):
@@ -104,7 +106,7 @@ class token:
                 return True
 
     def end_of_token(self, char):
-        if self._type == "SOF" or \
+        if self._type == "SOF" or self._type == "EOF" or \
                 (self._type == "white space" \
                 and not char.isspace()) \
                 or (self._type == "symbol" \
@@ -116,7 +118,7 @@ class token:
                 or (self._type == "comment" \
                 and self._token[-1] == "\n") \
                 or (self._type == "string" \
-                and char.isspace()):
+                and char.isspace() or char == "<"):
             return True
         else:
             return False
@@ -153,6 +155,8 @@ class lexer:
         self._iterator = 0
 
     def fetch_token(self):
+        print(self._tokens[self._iterator].read_token()+"\t"\
+                +self._tokens[self._iterator].type())
         self._iterator += 1
         return self._tokens[self._iterator-1]
 
@@ -167,15 +171,40 @@ class expression:
         self._LHS = token
         self._RHS = [[]]
 
-    def add_term(self, string):
-        self._RHS[-1].append(string)
-
     def add_choice(self):
         self._RHS.append([])
 
     def add_list(self, ls):
-        for token in ls:
-            self._RHS.append([])
+        self._RHS[-1] = ls
+
+    def contains_symbols(self):
+        return self.__recursive_contains_symbols(self._RHS)
+
+    def substitute_symbols(self, expr):
+        self.__recursive_substitute_symbols(self._RHS, expr)
+
+    def read_LHS(self):
+        return self._LHS.read_token()
+
+    def read_RHS(self):
+        return self._RHS
+
+    def __recursive_contains_symbols(self, ls):
+        for item in ls:
+            if type(item) == list:
+                does = self.__recursive_contains_symbols(item)
+                if does:
+                    return True
+            elif item.type() == "symbol":
+                return True
+        return False
+
+    def __recursive_substitute_symbols(self, ls, expr):
+        for i in range(0, len(ls)):
+            if type(ls[i]) == list:
+                self.__recursive_substitute_symbols(ls[i], expr)
+            elif expr.get_LHS() == ls[i].read_token():
+                ls[i] = expr.read_RHS
 
 class grammar:
 
@@ -186,45 +215,50 @@ class grammar:
 
     def __parse_file(self, text):
         lex = lexer(text)
-        EOF = False
-        while not EOF:
-            exprs = self.__parse_expresions(lex)
+        exprs = self.__parse_expressions(lex)
+        reducedExprs = self.__reduce_expressions(exprs)
 
-    def __parse_expresions(self, lex):
+    def __parse_expressions(self, lex):
         token = lex.fetch_token()
+        while token.type() == "white space" \
+                or token.type() == "comment":
+            token = lex.fetch_token()
+        parseStack = []
+        expr = None
+        exprs = []
         while token.type() != "EOF":
-            # RHS
+            if token.type() == "symbol" \
+                    or token.type() == "string":
+                parseStack.append(token)
+            if token.type() == "choice":
+                expr.add_choice()
+            if token.type() == "assignment":
+                if expr is None:
+                    if len(parseStack) == 0 \
+                            or len(parseStack) > 1 \
+                            or parseStack[0].type() != "symbol":
+                        self.__parse_error(token, "Invalid LHS")
+                        sys.exit()
+                    expr = expression(parseStack[0])
+                    parseStack = []
+                else:
+                    expr.add_list(parseStack[:-1])
+                    exprs.append(expr)
+                    expr = expression(parseStack[-1])
+            token = lex.fetch_token()
             while token.type() == "white space" \
                     or token.type() == "comment":
                 token = lex.fetch_token()
-            if token.type() != symbol:
-                self.__parse_error(equality, "Expected Assignment")
-                sys.exit()
-            expr = expression(token)
-            tokenStack = []
+        expr.add_list(parseStack)
+        exprs.append(expr)
+        return exprs
 
-#        token = lex.fetch_token()
-#        while token.type() == "white space" \
-#                or token.type() == "SOF":
-#            token = lex.fetch_token()
-#            print("L : " + token.read_token())
-#        expressions = [expression(token)]
-#        print("break point")
-#        tokenStack = []
-#        equality = lex.fetch_token()
-#        if equality != "::=":
-#            self.__parse_error(equality, "Expected Assignment")
-#            sys.exit()
-#        while token.type() != "EOF":
-#            token = lex.fetch_token()
-#            print(token.read_token())
-#            if token.type() == "white space":
-#                continue
-#            elif token.type() == "assignment":
-#                expressions[-1].add_list(tokenStack[:-1])
-#                expr = expression(tokenStack[-1])
-#            else:
-#                tokenStack.append(token)
+    def __reduce_expressions(self, exprs):
+        # root expression assumed to be primary
+        root = exprs[0]
+        while root.contains_symbols():
+            for expr in exprs:
+                root.substitute_symbols(expr)
 
     def __parse_error(self, token, msg):
         print("Line " + str(token.read_line()) + " " \
